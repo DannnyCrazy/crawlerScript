@@ -1,0 +1,52 @@
+{
+  "code": 0,
+  "msg": "ok",
+  "data": {
+    "lecture": {
+      "id": 35290257,
+      "subtitle": "",
+      "start_time": "2025-06-02T10:59:00.000Z",
+      "description": "",
+      "lecture_type": "open_lecture",
+      "password": "",
+      "lrc_enabled": 0,
+      "parent_lecture_id": null,
+      "image_mode": "picture",
+      "lecture_mode": "live_v",
+      "status": "closed",
+      "duration": 30,
+      "remark": {
+        "duration": 30,
+        "live_mode": 1,
+        "stream_id": "1400308874_35290257_screen_135663241_main",
+        "max_online": 10000,
+        "attend_status": "01",
+        "screen_resolution": "960*540",
+        "class_close_timestamp": 1748871879000
+      },
+      "create_time": "2025-06-01T22:29:39.446Z",
+      "update_time": "2025-06-02T16:18:17.815Z",
+      "lrc_resell_percent": 30,
+      "lla_listen": null,
+      "lla_audio": null,
+      "lla_qcloud_video_file_id": "MEDIA_SN:567268570560470016",
+      "lla_qcloud_video_comment": "{\"err_msg\":\"succ\",\"cover_url\":\"\",\"play_url\":\"https://media2.lycheer.net/process/vod/567237482852283392/v.f1004902.mp4\",\"video_size\":2538324060,\"duration\":9940,\"type\":\"mp4\",\"play_list\":[{\"url\":\"https://media2.lycheer.net/process/vod/567237482852283392/v.f1004902.mp4\",\"size\":2538324060,\"definition\":\"原画\"}]}",
+      "lla_status": "normal",
+      "lla_length": 9940,
+      "lla_update_time": "2025-06-02T16:18:17.818Z",
+      "llp_status": null,
+      "llp_create_time": null,
+      "can_public_relay": 0,
+      "cover_url": "https://staticqc.lycheer.net/static/media/default_banner_big.4c551525.jpg",
+      "price": 0,
+      "title": "三鹤老师：易经决策学入门",
+      "lla_type": "video",
+      "lla_url": "https://media2.lycheer.net/process/vod/567237482852283392/v.f1004902.mp4",
+      "live_video_status": "21",
+      "l_status": "closed",
+      "screen_type": "default",
+      "supplier": "tencent",
+      "is_syllabus_class": false
+    }
+  }
+}
