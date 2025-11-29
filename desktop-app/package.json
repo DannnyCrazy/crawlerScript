@@ -1,0 +1,24 @@
+{
+  "name": "desktop-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bunx @tauri-apps/cli dev",
+    "build": "bunx @tauri-apps/cli build"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@tauri-apps/api": "^1.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.0.0",
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.31",
+    "autoprefixer": "^10.4.20",
+    "@types/react": "^18.2.41",
+    "@types/react-dom": "^18.2.17",
+    "@tauri-apps/cli": "^1.5.9"
+  }
+}

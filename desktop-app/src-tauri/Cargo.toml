@@ -1,0 +1,22 @@
+[package]
+name = "excel_crawler"
+version = "0.1.0"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+tauri = { version = "1", features = ["shell-open", "dialog-open", "dialog-save"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+umya-spreadsheet = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+once_cell = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

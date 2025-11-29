@@ -1,0 +1,28 @@
+{
+    "identifier": "com.excel.crawler",
+    "productName": "ExcelCrawler",
+    "version": "0.1.0",
+    "build": {
+        "beforeDevCommand": "bunx vite",
+        "beforeBuildCommand": "bunx vite build"
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "windows": {
+            "wix": {
+                "language": "zh-CN"
+            }
+        }
+    },
+    "app": {
+        "windows": [
+            {
+                "title": "Excel 爬取工具",
+                "width": 1100,
+                "height": 800,
+                "resizable": true
+            }
+        ]
+    }
+}
