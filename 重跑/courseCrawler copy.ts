@@ -333,7 +333,7 @@ async function main(courseIds: string[]) {
         }个课程，ID: ${courseId}`
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 0.05)); // 1秒延迟
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       try {
         const courseData = await processCourse(courseId, token);

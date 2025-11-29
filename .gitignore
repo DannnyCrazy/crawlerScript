@@ -1,3 +1,9 @@
 *.xlsx
 .DS_Store
 desktop-app/node_modules/*
+
+# Tauri 生成的文件
+*/src-tauri/target
+*/src-tauri/Cargo.lock
+*/src-tauri/target/release
+*/src-tauri/target/debug

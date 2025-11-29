@@ -1,28 +1,63 @@
 {
-    "identifier": "com.excel.crawler",
+  "$schema": "https://schemas.tauri.app/config-1.json",
+  "build": {
+    "beforeDevCommand": "bunx vite --port 5173 --strictPort",
+    "beforeBuildCommand": "bunx vite build",
+    "devPath": "http://localhost:5173",
+    "distDir": "../dist",
+    "withGlobalTauri": true
+  },
+  "package": {
     "productName": "ExcelCrawler",
-    "version": "0.1.0",
-    "build": {
-        "beforeDevCommand": "bunx vite",
-        "beforeBuildCommand": "bunx vite build"
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": true
     },
     "bundle": {
-        "active": true,
-        "targets": "all",
-        "windows": {
-            "wix": {
-                "language": "zh-CN"
-            }
-        }
+      "active": true,
+      "category": "DeveloperTool",
+      "copyright": "",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": [
+        "icons/icon.ico"
+      ],
+      "identifier": "com.excel.crawler",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "resources": [],
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
     },
-    "app": {
-        "windows": [
-            {
-                "title": "Excel 爬取工具",
-                "width": 1100,
-                "height": 800,
-                "resizable": true
-            }
-        ]
-    }
+    "security": {
+      "csp": null
+    },
+    "updater": {
+      "active": false
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "height": 800,
+        "resizable": true,
+        "title": "Excel 爬取工具",
+        "width": 1100
+      }
+    ]
+  }
 }

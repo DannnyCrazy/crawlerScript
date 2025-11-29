@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bunx @tauri-apps/cli dev",
-    "build": "bunx @tauri-apps/cli build"
+    "dev": "bunx @tauri-apps/cli@^1 dev",
+    "build": "bunx @tauri-apps/cli@^1 build"
   },
   "dependencies": {
     "react": "^18.2.0",

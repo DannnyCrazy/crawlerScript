@@ -4,46 +4,10 @@ import https from "https";
 
 // 配置：Token 与需要爬取的数据分组
 const token =
-  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6MTU2ODI5MDkzLCJuaWNrbmFtZSI6ImRjIiwiYXZhdGFyX3VybCI6Imh0dHBzOi8vbWVkaWEyLmx5Y2hlZXIubmV0L3Byb2Nlc3MvaW1hZ2UvNjA4NTY3NzM0Mjk1MTgyMzM2LzczNWQzY2MwOTU2OWJiYTEyMGU2MzM3YThiNTU3Zjc0Iiwic2V4IjoiMCIsInN0YXR1cyI6Im5vcm1hbCIsInN1YnNjcmliZWQiOjAsInJvbGUiOiJzdHVkZW50IiwidGVsZXBob25lX3ZhbGlkYXRlIjpmYWxzZSwidHlwZSI6IkFjY291bnRUb2tlbiIsInZlcnNpb24iOiIxLjAiLCJsb2dpbl9rZXkiOm51bGwsImxvZ2luX3dheSI6bnVsbCwiY2xpZW50X2lwIjoiMTIwLjIzMC4xMzcuMTAzIiwidG9rZW5fa2V5IjoiTUM0M09EY3pOVFUzTnpBek9ERTVOVGM1IiwiZXhwIjoxNzY0MDk2MjA1fQ.wt9mfE_lsfyOK90DJR4KGVtEa5QShF4zRo0E6cJQf_4.b.WCwas5o5xCOvRx6JRCRQbB4nglwzf3JDlptTTtBL6N8";
+  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NTM3NTg4MTgsIm5pY2tuYW1lIjoiZCIsImF2YXRhcl91cmwiOiJodHRwczovL21lZGlhMi5seWNoZWVyLm5ldC9wcm9jZXNzL2ltYWdlLzYzMDkxNDE2NjcyNzc4MDM1Mi84MDNmNzA3ZGY0MmIyZjk5ZmM3Y2JhZGNjZTMyMzY1MyIsInNleCI6IjEiLCJzdGF0dXMiOiJub3JtYWwiLCJzdWJzY3JpYmVkIjowLCJyb2xlIjoic3R1ZGVudCIsInRlbGVwaG9uZV92YWxpZGF0ZSI6ZmFsc2UsInR5cGUiOiJBY2NvdW50VG9rZW4iLCJ2ZXJzaW9uIjoiMS4wIiwibG9naW5fa2V5IjpudWxsLCJsb2dpbl93YXkiOm51bGwsImNsaWVudF9pcCI6IjExNi43LjEwNi4xMTMiLCJ0b2tlbl9rZXkiOiJNQzQ1TURBd05qRTROVEkwT0RrNE56VTEiLCJleHAiOjE3NjQ0NDQ3NTB9.daJ9sv1f7735kjmwvpxcmfqKpjivNIHi-K37uAEySck.b.yNDckAzgTK9cVqKhHuJ3GJKzLDffWZHfp03CIcl1ed4";
 
 const arrGroup: string[][] = [
-  // ["36540547", "36744246"],
-  // ["36744247", "36863824"],
-  // ["36863825","36968824"],
-  // ["36968825", "36971824"],
-  // ["36971724", "36971824"],
-  // ["36971824", "36974824"],
-  // ["36974825", "36977824"],
-  // ["36977825", "36980824"],
-  // ["36980825", "36983824"],
-  // ["36983825", "36986824"],
-  // ["36986825", "36989824"],
-  // ["36989825", "36992824"],
-  // ["36992825", "36995824"],
-  // ["36995825", "36998824"],
-  // ["36998825", "37001824"],
-  // 3000个一组，10组
-  // ["37001825", "37004824"],
-  // ["37004825", "37007824"],
-  // ["37007825", "37010824"],
-  // ["37010825", "37013824"],
-  // ["37013825", "37016824"],
-  // ["37016825", "37019824"],
-  // ["37019825", "37022824"],
-  // ["37022825", "37025824"],
-
-  // ["37025825", "37028824"],
-  // ["37028825", "37031824"],
-  ["37031825", "37034824"],
-  ["37034825", "37037824"],
-  ["37037825", "37040824"],
-  ["37040825", "37043824"],
-  // ["37043825", "37046824"],
-  // ["37046825", "37049824"],
-  // ["37049825", "37052824"],
-  // ["37052825", "37055824"],
-  // ["37055825", "37058824"],
-  // ["37058825", "37061824"],
+  ['36894001','37000000']
 ];
 
 interface CourseItem {
@@ -366,7 +330,7 @@ async function main(courseIds: string[]) {
         }个课程，ID: ${courseId}`
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 0.05)); // 1秒延迟
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       try {
         const courseData = await processCourse(courseId, token);

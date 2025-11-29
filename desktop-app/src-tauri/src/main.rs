@@ -2,12 +2,14 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use tauri::{State, AppHandle};
+use tauri::{State, AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration};
 use umya_spreadsheet::{Spreadsheet, writer};
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 
 #[derive(Default)]
 struct CancelState(AtomicBool);
@@ -92,31 +94,33 @@ fn export_to_excel(path: &str, rows: &[CourseItem]) -> anyhow::Result<()> {
   let mut book = umya_spreadsheet::new_file();
   let sheet = book.get_sheet_by_name_mut("Sheet1").unwrap();
   let headers = ["序号","课程 id","标题","课程类型","解析地址","解析结果","频道ID","频道名称","直播间名称","课程数量","创建时间","更新时间"];
-  for (i, h) in headers.iter().enumerate() { sheet.get_cell_mut((i as u32 + 1, 1)).set_value(h.to_string()); }
+  for (i, h) in headers.iter().enumerate() {
+      sheet.get_cell_by_column_and_row_mut(&(i as u32 + 1), &1).set_value(h.to_string());
+  }
   for (idx, r) in rows.iter().enumerate() {
     let y = idx as u32 + 2;
-    sheet.get_cell_mut((1, y)).set_value_number(r.index as f64);
-    sheet.get_cell_mut((2, y)).set_value(r.courseId.clone());
-    sheet.get_cell_mut((3, y)).set_value(r.title.clone());
-    sheet.get_cell_mut((4, y)).set_value(r.courseType.clone());
-    sheet.get_cell_mut((5, y)).set_value(r.llaUrl.clone());
-    sheet.get_cell_mut((6, y)).set_value(r.result.clone());
-    sheet.get_cell_mut((7, y)).set_value(r.channelId.clone());
-    sheet.get_cell_mut((8, y)).set_value(r.channelName.clone());
-    sheet.get_cell_mut((9, y)).set_value(r.liveroomName.clone());
-    sheet.get_cell_mut((10, y)).set_value_number(r.lectureCount as f64);
-    sheet.get_cell_mut((11, y)).set_value(r.createTime.clone());
-    sheet.get_cell_mut((12, y)).set_value(r.updateTime.clone());
+    sheet.get_cell_by_column_and_row_mut(&1, &y).set_value(r.index.to_string());
+    sheet.get_cell_by_column_and_row_mut(&2, &y).set_value(r.courseId.clone());
+    sheet.get_cell_by_column_and_row_mut(&3, &y).set_value(r.title.clone());
+    sheet.get_cell_by_column_and_row_mut(&4, &y).set_value(r.courseType.clone());
+    sheet.get_cell_by_column_and_row_mut(&5, &y).set_value(r.llaUrl.clone());
+    sheet.get_cell_by_column_and_row_mut(&6, &y).set_value(r.result.clone());
+    sheet.get_cell_by_column_and_row_mut(&7, &y).set_value(r.channelId.clone());
+    sheet.get_cell_by_column_and_row_mut(&8, &y).set_value(r.channelName.clone());
+    sheet.get_cell_by_column_and_row_mut(&9, &y).set_value(r.liveroomName.clone());
+    sheet.get_cell_by_column_and_row_mut(&10, &y).set_value(r.lectureCount.to_string());
+    sheet.get_cell_by_column_and_row_mut(&11, &y).set_value(r.createTime.clone());
+    sheet.get_cell_by_column_and_row_mut(&12, &y).set_value(r.updateTime.clone());
   }
   writer::xlsx::write(&book, path)?;
   Ok(())
 }
 
 #[tauri::command]
-async fn cancel_task(state: State<'_, CancelState>) { state.0.store(true, Ordering::SeqCst) }
+async fn cancel_task(state: State<'_, CancelState>) -> Result<(), String> { state.0.store(true, Ordering::SeqCst); Ok(()) }
 
 #[tauri::command]
-async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: String, start_id: u64, end_id: u64, concurrency: usize, chunk_size: usize, delay_ms: u64, out_dir: Option<String>) -> Result<(), String> {
+async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: String, start_id: u64, end_id: u64, concurrency: usize, chunk_size: usize, out_dir: Option<String>) -> Result<(), String> {
   state.0.store(false, Ordering::SeqCst);
   let total = if end_id >= start_id { (end_id - start_id + 1) as usize } else { 0 };
   let dir = out_dir.unwrap_or_else(|| tauri::api::path::download_dir().unwrap_or(std::env::current_dir().unwrap()).to_string_lossy().to_string());
@@ -127,29 +131,36 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
   let mut processed = 0usize;
   let mut success = 0usize;
   let mut failed = 0usize;
+  let mut ignored = 0usize;
+  let mut started = 0usize;
+  let _ = app.emit_all("crawl_progress", serde_json::json!({"done": 0, "total": total, "success": 0, "failed": 0, "ignored": 0, "started": 0, "current_id": ""}));
   for chunk in ids.chunks(group_size) {
     let mut all_rows: Vec<CourseItem> = Vec::new();
     let sem = Arc::new(Semaphore::new(concurrency.max(1)));
-    let mut handles = Vec::new();
-    for id in chunk.iter() {
+    let mut futs = FuturesUnordered::new();
+    for id_ref in chunk.iter() {
+      let id = *id_ref;
       if state.0.load(Ordering::SeqCst) { break }
       let permit = sem.clone().acquire_owned().await.unwrap();
       let token_cl = token.clone();
       let client_cl = client.clone();
       let app_cl = app.clone();
-      handles.push(tokio::spawn(async move {
+      futs.push(tokio::spawn(async move {
         let cid = id.to_string();
         let mut rows = Vec::<CourseItem>::new();
         let res = process_course(&client_cl, &cid, &token_cl).await;
-        match res {
-          Ok(mut v) => { rows.append(&mut v); let _ = app_cl.emit_all("crawl_progress", serde_json::json!({"done": 0, "total": 0, "success": 0, "failed": 0, "current_id": cid })); Ok(rows) }
-          Err(_) => { Ok(vec![CourseItem{ index: 1, title: String::new(), courseId: cid.clone(), r#type: String::new(), llaUrl: String::new(), courseType: String::new(), result: String::from("不解析"), channelId: String::new(), channelName: String::new(), liveroomName: String::new(), lectureCount: 0, createTime: String::new(), updateTime: String::new() }]) }
-        }
+        let out: Result<Vec<CourseItem>, ()> = match res {
+          Ok(mut v) => { rows.append(&mut v); let _ = app_cl.emit_all("crawl_tick", serde_json::json!({"id": cid })); Ok(rows) }
+          Err(_) => { Ok(vec![CourseItem{ index: 1, title: String::new(), courseId: cid.clone(), r#type: String::new(), llaUrl: String::new(), courseType: String::new(), result: String::from("失败"), channelId: String::new(), channelName: String::new(), liveroomName: String::new(), lectureCount: 0, createTime: String::new(), updateTime: String::new() }]) }
+        };
         drop(permit);
+        out
       }));
-      if delay_ms > 0 { sleep(Duration::from_millis(delay_ms)).await; }
+      started += 1;
+      let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""}));
+      sleep(Duration::from_millis(100)).await;
     }
-    for h in handles { if let Ok(Ok(mut r)) = h.await { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "current_id": ""})); } } }
+    while let Some(res) = futs.next().await { if let Ok(Ok(mut r)) = res { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } else { ignored += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""})); } } }
     if all_rows.is_empty() { continue }
     let start = chunk.first().unwrap();
     let end = chunk.last().unwrap();
@@ -168,13 +179,24 @@ async fn merge_excels(paths: Vec<String>, out_path: String) -> Result<(), String
   let mut book = umya_spreadsheet::new_file();
   let sheet = book.get_sheet_by_name_mut("Sheet1").unwrap();
   let headers = ["序号","课程 id","标题","课程类型","解析地址","解析结果","频道ID","频道名称","直播间名称","课程数量","创建时间","更新时间"];
-  for (i, h) in headers.iter().enumerate() { sheet.get_cell_mut((i as u32 + 1, 1)).set_value(h.to_string()); }
+  for (i, h) in headers.iter().enumerate() { sheet.get_cell_by_column_and_row_mut(&(i as u32 + 1), &1).set_value(h.to_string()); }
   let mut idx = 1usize;
   for p in paths {
     if let Ok(b) = umya_spreadsheet::reader::xlsx::read(&std::path::Path::new(&p)) {
-      if let Some(s) = b.get_sheet_by_name("Sheet1") {
+      if let Ok(s) = b.get_sheet_by_name("Sheet1") {
         let last_row = s.get_highest_row();
-        for y in 2..=last_row { idx += 1; let y2 = idx as u32; sheet.get_cell_mut((1, y2)).set_value_number(idx as f64); for x in 2..=12 { if let Some(c) = s.get_cell_value((x, y)) { sheet.get_cell_mut((x, y2)).set_value(c.to_string()); } }
+        for y in 2..=last_row {
+            idx += 1;
+            let y2 = idx as u32;
+            sheet.get_cell_by_column_and_row_mut(&1, &y2).set_value(idx.to_string());
+            for x in 2..=12 {
+                if let Some(cell) = s.get_cell_by_column_and_row(&x, &y) {
+                    let c = cell.get_value();
+                    if !c.is_empty() {
+                        sheet.get_cell_by_column_and_row_mut(&x, &y2).set_value(c.to_string());
+                    }
+                }
+            }
         }
       }
     }
@@ -183,6 +205,25 @@ async fn merge_excels(paths: Vec<String>, out_path: String) -> Result<(), String
   Ok(())
 }
 
+#[tauri::command]
+async fn merge_excels_dir(dir: String, out_path: String) -> Result<(), String> {
+  let mut paths: Vec<String> = Vec::new();
+  let rd = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
+  for e in rd {
+    if let Ok(de) = e {
+      let p = de.path();
+      if p.is_file() {
+        if let Some(ext) = p.extension().and_then(|s| s.to_str()) {
+          if ext.eq_ignore_ascii_case("xlsx") {
+            paths.push(p.to_string_lossy().to_string());
+          }
+        }
+      }
+    }
+  }
+  merge_excels(paths, out_path).await
+}
+
 fn main() {
-  tauri::Builder::default().manage(CancelState(AtomicBool::new(false))).invoke_handler(tauri::generate_handler![crawl_courses, cancel_task, merge_excels]).run(tauri::generate_context!()).expect("error while running tauri application");
+  tauri::Builder::default().manage(CancelState(AtomicBool::new(false))).invoke_handler(tauri::generate_handler![crawl_courses, cancel_task, merge_excels, merge_excels_dir]).run(tauri::generate_context!()).expect("error while running tauri application");
 }

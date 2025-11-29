@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/api/dialog";
 
 type ProgressEvent = {
   done: number;
   total: number;
   success: number;
   failed: number;
+  started?: number;
   current_id?: string;
 };
 
@@ -26,9 +28,7 @@ function App() {
   const [chunkSize, setChunkSize] = useState<string>(
     () => localStorage.getItem("chunkSize") || "0"
   );
-  const [delayMs, setDelayMs] = useState<string>(
-    () => localStorage.getItem("delayMs") || "0"
-  );
+  
   const [outDir, setOutDir] = useState<string>(
     () => localStorage.getItem("outDir") || ""
   );
@@ -41,7 +41,7 @@ function App() {
   });
   const [logs, setLogs] = useState<string[]>([]);
   const [outputs, setOutputs] = useState<string[]>([]);
-  const [mergeInputs, setMergeInputs] = useState<string>("");
+  const [mergeDir, setMergeDir] = useState<string>("");
   const [mergeOut, setMergeOut] = useState<string>("");
 
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -51,9 +51,13 @@ function App() {
       setProgress(e.payload);
       setLogs((prev) => [
         ...prev.slice(-500),
-        `${new Date().toLocaleTimeString()} id:${
-          e.payload.current_id ?? ""
-        } done:${e.payload.done}/${e.payload.total}`,
+        `${new Date().toLocaleTimeString()} 进度 ${e.payload.done}/${e.payload.total} 成功:${e.payload.success} 失败:${e.payload.failed} 忽略:${(e.payload as any).ignored ?? 0}`,
+      ]);
+    });
+    const unlistenTick = listen<{ id: string }>("crawl_tick", (e) => {
+      setLogs((prev) => [
+        ...prev.slice(-500),
+        `${new Date().toLocaleTimeString()} 正在处理 id:${e.payload.id}`,
       ]);
     });
     const unlistenDone = listen<{ outputs: string[] }>("crawl_done", (e) => {
@@ -69,6 +73,7 @@ function App() {
     return () => {
       unlisten.then((f) => f());
       unlistenDone.then((f) => f());
+      unlistenTick.then((f) => f());
       unlistenErr.then((f) => f());
     };
   }, []);
@@ -79,7 +84,7 @@ function App() {
 
   const totalLabel = useMemo(
     () =>
-      `${progress.done}/${progress.total} 成功:${progress.success} 失败:${progress.failed}`,
+      `${progress.done}/${progress.total} 成功:${progress.success} 失败:${progress.failed} 忽略:${(progress as any).ignored ?? 0}`,
     [progress]
   );
 
@@ -90,7 +95,7 @@ function App() {
     localStorage.setItem("endId", endId);
     localStorage.setItem("concurrency", concurrency);
     localStorage.setItem("chunkSize", chunkSize);
-    localStorage.setItem("delayMs", delayMs);
+    
     localStorage.setItem("outDir", outDir);
     setRunning(true);
     setLogs([]);
@@ -102,7 +107,6 @@ function App() {
       endId: Number(endId),
       concurrency: Number(concurrency || "10"),
       chunkSize: Number(chunkSize || "0"),
-      delayMs: Number(delayMs || "0"),
       outDir: outDir || null,
     });
   };
@@ -113,19 +117,20 @@ function App() {
   };
 
   const onMerge = async () => {
-    const paths = mergeInputs
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!paths.length || !mergeOut) return;
-    await invoke("merge_excels", { paths, outPath: mergeOut });
+    if (!mergeDir || !mergeOut) return;
+    await invoke("merge_excels_dir", { dir: mergeDir, outPath: mergeOut });
+  };
+
+  const onPickMergeDir = async () => {
+    const dir = await open({ directory: true });
+    if (typeof dir === "string") setMergeDir(dir);
   };
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Excel 爬取工具</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <label className="text-sm text-gray-600">Token</label>
           <input
             className="px-3 py-2 border rounded w-full"
@@ -149,14 +154,14 @@ function App() {
             onChange={(e) => setEndId(e.target.value)}
           />
         </div>
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <label className="text-sm text-gray-600">并发数</label>
           <input
             className="px-3 py-2 border rounded w-full"
             value={concurrency}
             onChange={(e) => setConcurrency(e.target.value)}
           />
-        </div>
+        </div> */}
         <div className="space-y-2">
           <label className="text-sm text-gray-600">分组大小</label>
           <input
@@ -165,14 +170,14 @@ function App() {
             onChange={(e) => setChunkSize(e.target.value)}
           />
         </div>
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <label className="text-sm text-gray-600">请求延迟(ms)</label>
           <input
             className="px-3 py-2 border rounded w-full"
             value={delayMs}
             onChange={(e) => setDelayMs(e.target.value)}
           />
-        </div>
+        </div> */}
         <div className="space-y-2 md:col-span-2">
           <label className="text-sm text-gray-600">输出目录</label>
           <input
@@ -200,12 +205,20 @@ function App() {
       </div>
       <div className="space-y-2">
         <div className="text-sm text-gray-700">{totalLabel}</div>
-        <div className="w-full bg-gray-200 rounded h-3">
+        <div className="w-full bg-gray-200 rounded h-3 relative overflow-hidden">
           <div
-            className="bg-green-500 h-3 rounded"
+            className="bg-blue-400 h-3"
             style={{
               width: progress.total
-                ? `${(progress.done / progress.total) * 100}%`
+                ? `${(((progress.started ?? 0) / progress.total) * 100).toFixed(2)}%`
+                : "0%",
+            }}
+          />
+          <div
+            className="bg-green-500 h-3 absolute top-0 left-0"
+            style={{
+              width: progress.total
+                ? `${(((progress.done) / progress.total) * 100).toFixed(2)}%`
                 : "0%",
             }}
           />
@@ -233,13 +246,16 @@ function App() {
         </div>
       )}
       <div className="space-y-2">
-        <div className="text-sm text-gray-700">合并 Excel（逗号分隔路径）</div>
-        <input
-          className="px-3 py-2 border rounded w-full"
-          value={mergeInputs}
-          onChange={(e) => setMergeInputs(e.target.value)}
-          placeholder="示例：C:\\a.xlsx, C:\\b.xlsx"
-        />
+        <div className="text-sm text-gray-700">合并 Excel（选择文件夹）</div>
+        <div className="flex gap-2">
+          <input
+            className="px-3 py-2 border rounded w-full"
+            value={mergeDir}
+            readOnly
+            placeholder="选择包含需合并的Excel文件的文件夹"
+          />
+          <button onClick={onPickMergeDir} className="px-4 py-2 rounded bg-gray-600 text-white">选择文件夹</button>
+        </div>
         <input
           className="px-3 py-2 border rounded w-full"
           value={mergeOut}
