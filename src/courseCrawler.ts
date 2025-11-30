@@ -270,15 +270,11 @@ async function exportToExcel(
     // 添加数据
     worksheet.addRows(data);
 
-    // 生成文件名
-    const timestamp = new Date().toISOString().replace(/:/g, "-").split(".")[0];
-    const fileName = outputPath || `course_data_${timestamp}.xlsx`;
-
     // 写入文件
-    await workbook.xlsx.writeFile(fileName);
+    await workbook.xlsx.writeFile(outputPath!);
 
-    console.log(`[Excel导出] Excel文件已保存到: ${fileName}`);
-    return fileName;
+    console.log(`[Excel导出] Excel文件已保存到: ${outputPath}`);
+    return outputPath!;
   } catch (error) {
     console.error("[Excel导出] 导出Excel时出错:");
     throw error;
@@ -289,22 +285,6 @@ async function main(courseIds: string[]) {
   try {
     console.log("=== 爬虫工具启动 ===");
 
-    // 直接在代码中定义courseIds数组和token;
-    // const courseIds = [
-    //   // "36564821",
-    //   // "36565528",
-    //   // "36565529", // 语音
-    //   // "36565531", // 失败
-    //   // "36565532", // audio语音
-    //   // "36530966", // verify_type为1视频
-    //   // "36532952", // ppt语音
-    // ]; // 可以添加多个课程ID
-
-    // 36530547-36535547
-    // const courseIds = Array.from({ length: 5000 }, (_, i) =>
-    //   (36535547 + i).toString()
-    // ); // 可以添加多个课程ID
-
     // 使用顶部配置的 token
 
     // 生成文件名：开始-结束.xlsx
@@ -313,7 +293,6 @@ async function main(courseIds: string[]) {
     const outputPath = `${startId}-${endId}.xlsx`;
 
     console.log(`[步骤1] 开始爬取课程，共${courseIds.length}个课程ID`);
-    // console.log(`[配置] 课程IDs: ${courseIds.join(", ")}`);
     console.log(`[配置] 输出文件路径: ${outputPath}`);
 
     // 创建一个数组来存储所有课程的数据
@@ -343,11 +322,7 @@ async function main(courseIds: string[]) {
         // 将当前课程数据添加到总数据中
         allCourseData = [...allCourseData, ...courseData];
         successCount++;
-        // console.log(
-        //   `[处理进度] 课程${courseId}处理完成，获取到${courseData.length}条记录`
-        // );
       } catch (error) {
-        // console.error(`[错误] 处理课程${courseId}时出错:`);
         // 添加错误记录到数据中
         allCourseData.push({
           index: allCourseData.length + 1,
@@ -365,7 +340,6 @@ async function main(courseIds: string[]) {
           updateTime: "",
         });
         errorCount++;
-        // 继续处理下一个课程，不中断整个流程
       }
     }
 
@@ -386,21 +360,29 @@ async function main(courseIds: string[]) {
   }
 }
 
-// 执行主函数
-// main();
-
 const batchCrawler = async () => {
-  // 设置N组数据，每5000个一组，每组之间间隔10秒，每组数据导出一个excel
-  // 36535547-36694246
   // 使用顶部配置的分组 arrGroup
-
   for (const group of arrGroup) {
     const [start, end] = group;
-    const courseIds = Array.from(
-      { length: Number(end) - Number(start) + 1 },
-      (_, i) => (Number(start) + i).toString()
-    );
-    await main(courseIds);
+    const total = Number(end) - Number(start) + 1;
+    const step = 3000; // 每组3000个
+    let current = Number(start);
+
+    while (current <= Number(end)) {
+      const batchEnd = Math.min(current + step - 1, Number(end));
+      const courseIds = Array.from(
+        { length: batchEnd - current + 1 },
+        (_, i) => (current + i).toString()
+      );
+      await main(courseIds);
+      current = batchEnd + 1;
+
+      // 组间间隔10秒
+      if (current <= Number(end)) {
+        console.log(`[批次间隔] 等待10秒后处理下一组...`);
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+    }
   }
 };
 

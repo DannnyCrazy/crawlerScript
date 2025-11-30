@@ -1,6 +1,7 @@
 *.xlsx
 .DS_Store
-desktop-app/node_modules/*
+*/node_modules/*
+node_modules/*
 
 # Tauri 生成的文件
 */src-tauri/target
