@@ -142,7 +142,7 @@ function App() {
         ...prev.slice(-500),
         `${new Date().toLocaleTimeString()} error:${msg}`,
       ]);
-      if (msg.includes("403")) {
+      if (msg.includes("连续超过10次")) {
         setTokenError("Token 无效或过期(403)，任务已终止");
         setRunning(false);
       }
@@ -375,7 +375,7 @@ function App() {
       <div className="flex gap-2">
         <button
           onClick={onStart}
-          disabled={running || (completed && logs.length > 0)}
+          disabled={running || (logs.length > 0 || outputs.length > 0)}
           className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           开始任务
@@ -388,7 +388,7 @@ function App() {
         </button>
         <button
           onClick={onClearTask}
-          disabled={!(logs.length > 0 && completed)}
+          disabled={!((logs.length > 0 || outputs.length > 0) && !running)}
           className="px-4 py-2 rounded bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           清空当前任务结果
