@@ -1,4 +1,4 @@
-# Excel 爬取工具（Tauri + React + Tailwind）
+# 荔枝视频爬取工具（Tauri + React + Tailwind）
 
 - 依赖安装：在 `desktop-app` 下执行 `bun install`。
 - 运行开发：`bun run dev`。

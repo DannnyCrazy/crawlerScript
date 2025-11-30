@@ -63,6 +63,7 @@ fn bj_time(s: Option<&str>) -> String {
 async fn fetch_course_info(client: &Client, course_id: &str, token: &str) -> anyhow::Result<CourseInfoResponse> {
   let url = format!("https://apiv1.lizhiweike.com/api/lecture/{}/info?token={}", course_id, token);
   let resp = client.get(url).header("Accept", "application/json, text/plain, */*").header("Accept-Language", "zh-cn").header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36").send().await?;
+  if resp.status().as_u16() == 403 { anyhow::bail!("HTTP_403") }
   let v = resp.json::<CourseInfoResponse>().await?;
   Ok(v)
 }
@@ -70,6 +71,7 @@ async fn fetch_course_info(client: &Client, course_id: &str, token: &str) -> any
 async fn fetch_course_detail(client: &Client, liveroom_id: i64, lecture_id: &str, token: &str) -> anyhow::Result<CourseDetailResponse> {
   let url = format!("https://admin.lizhiweike.com/api/liverooms/{}/lectures/{}?token={}&fresh=0.95&level=normal_edit", liveroom_id, lecture_id, token);
   let resp = client.get(url).header("Accept", "application/json, text/plain, */*").header("Accept-Language", "zh-cn").header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36").header("Origin", "https://m.lizhiweike.com").send().await?;
+  if resp.status().as_u16() == 403 { anyhow::bail!("HTTP_403") }
   let v = resp.json::<CourseDetailResponse>().await?;
   Ok(v)
 }
@@ -124,9 +126,11 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
   state.0.store(false, Ordering::SeqCst);
   let total = if end_id >= start_id { (end_id - start_id + 1) as usize } else { 0 };
   let dir = out_dir.unwrap_or_else(|| tauri::api::path::download_dir().unwrap_or(std::env::current_dir().unwrap()).to_string_lossy().to_string());
+  let _ = std::fs::create_dir_all(&dir);
   let client = Client::builder().danger_accept_invalid_certs(true).build().map_err(|e| e.to_string())?;
   let ids: Vec<u64> = (start_id..=end_id).collect();
   let group_size = if chunk_size > 0 { chunk_size } else { ids.len() };
+  let cancel403 = Arc::new(AtomicBool::new(false));
   let mut outputs: Vec<String> = Vec::new();
   let mut processed = 0usize;
   let mut success = 0usize;
@@ -140,18 +144,29 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
     let mut futs = FuturesUnordered::new();
     for id_ref in chunk.iter() {
       let id = *id_ref;
-      if state.0.load(Ordering::SeqCst) { break }
+      if state.0.load(Ordering::SeqCst) || cancel403.load(Ordering::SeqCst) { break }
       let permit = sem.clone().acquire_owned().await.unwrap();
       let token_cl = token.clone();
       let client_cl = client.clone();
       let app_cl = app.clone();
+      let cancel403_cl = cancel403.clone();
       futs.push(tokio::spawn(async move {
         let cid = id.to_string();
         let mut rows = Vec::<CourseItem>::new();
         let res = process_course(&client_cl, &cid, &token_cl).await;
         let out: Result<Vec<CourseItem>, ()> = match res {
-          Ok(mut v) => { rows.append(&mut v); let _ = app_cl.emit_all("crawl_tick", serde_json::json!({"id": cid })); Ok(rows) }
-          Err(_) => { Ok(vec![CourseItem{ index: 1, title: String::new(), courseId: cid.clone(), r#type: String::new(), llaUrl: String::new(), courseType: String::new(), result: String::from("失败"), channelId: String::new(), channelName: String::new(), liveroomName: String::new(), lectureCount: 0, createTime: String::new(), updateTime: String::new() }]) }
+          Ok(mut v) => { rows.append(&mut v); let _ = app_cl.emit_all("crawl_tick", serde_json::json!({"id": cid })); let r = rows.first().map(|it| it.result.clone()).unwrap_or_else(|| String::from("失败")); let _ = app_cl.emit_all("crawl_item", serde_json::json!({"id": cid, "result": r })); Ok(rows) }
+          Err(e) => {
+            let msg = format!("{}", e);
+            if msg.contains("HTTP_403") {
+              let _ = app_cl.emit_all("crawl_error", serde_json::json!({"message": "403 登录失效，任务已终止"}));
+              cancel403_cl.store(true, Ordering::SeqCst);
+              Ok(Vec::new())
+            } else {
+              let _ = app_cl.emit_all("crawl_item", serde_json::json!({"id": cid.clone(), "result": "失败" }));
+              Ok(vec![CourseItem{ index: 1, title: String::new(), courseId: cid.clone(), r#type: String::new(), llaUrl: String::new(), courseType: String::new(), result: String::from("失败"), channelId: String::new(), channelName: String::new(), liveroomName: String::new(), lectureCount: 0, createTime: String::new(), updateTime: String::new() }])
+            }
+          }
         };
         drop(permit);
         out
@@ -160,15 +175,23 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
       let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""}));
       sleep(Duration::from_millis(100)).await;
     }
-    while let Some(res) = futs.next().await { if let Ok(Ok(mut r)) = res { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } else { ignored += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""})); } } }
+    while let Some(res) = futs.next().await { if let Ok(Ok(mut r)) = res { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } else { ignored += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""})); } } if cancel403.load(Ordering::SeqCst) { break } }
+    if cancel403.load(Ordering::SeqCst) { break }
     if all_rows.is_empty() { continue }
     let start = chunk.first().unwrap();
     let end = chunk.last().unwrap();
     let fname = format!("{}-{}.xlsx", start, end);
     let mut path = PathBuf::from(&dir);
     path.push(fname);
-    export_to_excel(path.to_string_lossy().as_ref(), &all_rows).map_err(|e| e.to_string())?;
-    outputs.push(path.to_string_lossy().to_string());
+    match export_to_excel(path.to_string_lossy().as_ref(), &all_rows) {
+      Ok(()) => {
+        outputs.push(path.to_string_lossy().to_string());
+        let _ = app.emit_all("crawl_exported", serde_json::json!({"path": path.to_string_lossy().to_string()}));
+      }
+      Err(e) => {
+        let _ = app.emit_all("crawl_error", serde_json::json!({"message": format!("导出失败: {}", e) }));
+      }
+    }
   }
   let _ = app.emit_all("crawl_done", serde_json::json!({"outputs": outputs}));
   Ok(())

@@ -19,7 +19,7 @@ const token =
 
 const arrGroup: string[][] = [
   // 3000个一组
-  ["36894301", "36894320"],
+  ["36891618", "36891640"],
 ];
 
 interface CourseItem {
@@ -58,7 +58,7 @@ async function fetchCourseInfo(courseId: string, token: string): Promise<any> {
     if (error.status === 403) {
       console.error("[课程信息接口] 登录失效，请重新登录");
     } else {
-      console.error("[课程信息接口] 获取课程信息失败:", error.message);
+      console.error(`[${courseId}] 获取课程信息失败:`, error.status);
     }
     throw error;
   }
@@ -123,6 +123,7 @@ async function processCourse(
       courseType: courseType, // 添加课程类型字段：视频或语音
       result: "不解析", // 添加解析结果字段：成功或失败或不解析
     };
+
     if (courseInfoLecture.image_mode === "ppt") {
       courseType = "ppt语音";
       result = {
@@ -215,6 +216,7 @@ async function processCourse(
           courseInfo.data.lecture?.update_time || ""
         ),
       };
+      console.log(`[${courseId}]:类型:${courseType}`);
     } else if (liveroom.verify_type === 0) {
       courseType = "语音";
       result = {
@@ -236,6 +238,7 @@ async function processCourse(
           courseInfo.data.lecture?.update_time || ""
         ),
       };
+      console.log(`[${courseId}]:类型:${courseType}`);
     }
 
     return result;
