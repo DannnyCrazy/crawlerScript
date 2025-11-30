@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{Arc, atomic::{AtomicBool, AtomicUsize, AtomicU64, Ordering}};
 use tauri::{State, AppHandle, Manager};
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
@@ -131,6 +131,8 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
   let ids: Vec<u64> = (start_id..=end_id).collect();
   let group_size = if chunk_size > 0 { chunk_size } else { ids.len() };
   let cancel403 = Arc::new(AtomicBool::new(false));
+  let http403_streak = Arc::new(AtomicUsize::new(0));
+  let first403_id = Arc::new(AtomicU64::new(0));
   let mut outputs: Vec<String> = Vec::new();
   let mut processed = 0usize;
   let mut success = 0usize;
@@ -150,19 +152,28 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
       let client_cl = client.clone();
       let app_cl = app.clone();
       let cancel403_cl = cancel403.clone();
+      let streak_cl = http403_streak.clone();
+      let first403_cl = first403_id.clone();
       futs.push(tokio::spawn(async move {
         let cid = id.to_string();
         let mut rows = Vec::<CourseItem>::new();
         let res = process_course(&client_cl, &cid, &token_cl).await;
         let out: Result<Vec<CourseItem>, ()> = match res {
-          Ok(mut v) => { rows.append(&mut v); let _ = app_cl.emit_all("crawl_tick", serde_json::json!({"id": cid })); let r = rows.first().map(|it| it.result.clone()).unwrap_or_else(|| String::from("失败")); let _ = app_cl.emit_all("crawl_item", serde_json::json!({"id": cid, "result": r })); Ok(rows) }
+          Ok(mut v) => { streak_cl.store(0, Ordering::SeqCst); rows.append(&mut v); let _ = app_cl.emit_all("crawl_tick", serde_json::json!({"id": cid })); let r = rows.first().map(|it| it.result.clone()).unwrap_or_else(|| String::from("失败")); let _ = app_cl.emit_all("crawl_item", serde_json::json!({"id": cid, "result": r })); Ok(rows) }
           Err(e) => {
             let msg = format!("{}", e);
             if msg.contains("HTTP_403") {
-              let _ = app_cl.emit_all("crawl_error", serde_json::json!({"message": "403 登录失效，任务已终止"}));
-              cancel403_cl.store(true, Ordering::SeqCst);
+              let n = streak_cl.fetch_add(1, Ordering::SeqCst) + 1;
+              let _ = app_cl.emit_all("crawl_error", serde_json::json!({"message": format!("403 错误({}/10)", n)}));
+              // 记录第一次403的课程ID
+              let prev = first403_cl.load(Ordering::SeqCst);
+              if prev == 0 {
+                if let Ok(idn) = cid.parse::<u64>() { first403_cl.store(idn, Ordering::SeqCst); }
+              }
+              if n > 10 { cancel403_cl.store(true, Ordering::SeqCst); let _ = app_cl.emit_all("crawl_error", serde_json::json!({"message": "403 连续超过10次，任务已终止"})); }
               Ok(Vec::new())
             } else {
+              streak_cl.store(0, Ordering::SeqCst);
               let _ = app_cl.emit_all("crawl_item", serde_json::json!({"id": cid.clone(), "result": "失败" }));
               Ok(vec![CourseItem{ index: 1, title: String::new(), courseId: cid.clone(), r#type: String::new(), llaUrl: String::new(), courseType: String::new(), result: String::from("失败"), channelId: String::new(), channelName: String::new(), liveroomName: String::new(), lectureCount: 0, createTime: String::new(), updateTime: String::new() }])
             }
@@ -176,14 +187,15 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
       sleep(Duration::from_millis(200)).await;
     }
     while let Some(res) = futs.next().await { if let Ok(Ok(mut r)) = res { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } else { ignored += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""})); } } if cancel403.load(Ordering::SeqCst) { break } }
-    if cancel403.load(Ordering::SeqCst) { break }
+    // 不要在这里提前 break，以便导出已处理的数据
     if all_rows.is_empty() { continue }
     let start = chunk.first().unwrap();
-    let end_name = all_rows
-      .iter()
-      .filter_map(|it| it.courseId.parse::<u64>().ok())
-      .max()
-      .unwrap_or(*start);
+    let end_name = {
+      let f403 = first403_id.load(Ordering::SeqCst);
+      if cancel403.load(Ordering::SeqCst) && f403 != 0 { f403 } else {
+        all_rows.iter().filter_map(|it| it.courseId.parse::<u64>().ok()).max().unwrap_or(*start)
+      }
+    };
     let fname = format!("{}-{}.xlsx", start, end_name);
     let mut path = PathBuf::from(&dir);
     path.push(fname);
@@ -196,6 +208,7 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
         let _ = app.emit_all("crawl_error", serde_json::json!({"message": format!("导出失败: {}", e) }));
       }
     }
+    if cancel403.load(Ordering::SeqCst) { break }
   }
   let _ = app.emit_all("crawl_done", serde_json::json!({"outputs": outputs}));
   Ok(())

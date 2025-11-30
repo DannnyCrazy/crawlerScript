@@ -15,11 +15,11 @@ const axiosInstance = axios.create({
 
 // 配置：Token 与需要爬取的数据分组
 const token =
-  "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NTM3NTg4MTgsIm5pY2tuYW1lIjoiZCIsImF2YXRhcl91cmwiOiJodHRwczovL21lZGlhMi5seWNoZWVyLm5ldC9wcm9jZXNzL2ltYWdlLzYzMDkxNDE2NjcyNzc4MDM1Mi84MDNmNzA3ZGY0MmIyZjk5ZmM3Y2JhZGNjZTMyMzY1MyIsInNleCI6IjEiLCJzdGF0dXMiOiJub3JtYWwiLCJzdWJzY3JpYmVkIjowLCJyb2xlIjoic3R1ZGVudCIsInRlbGVwaG9uZV92YWxpZGF0ZSI6ZmFsc2UsInR5cGUiOiJBY2NvdW50VG9rZW4iLCJ2ZXJzaW9uIjoiMS4wIiwibG9naW5fa2V5IjpudWxsLCJsb2dpbl93YXkiOm51bGwsImNsaWVudF9pcCI6IjExNi43LjEwNi4xMTMiLCJ0b2tlbl9rZXkiOiJNQzR4TURjMU9URTNOek13TXpBek9UTXpOZyIsImV4cCI6MTc2NDUwNzA3M30.kLURlZuKnX1J9gvgyAPRCjGw06hQyOvMVTHutGaHcnw.b.bdFyw9JfjyKGRXd-KG807dy4YjPSLFRxcdoMPoGxRK0";
+  "eyJ0eAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6NTM3NTg4MTgsIm5pY2tuYW1lIjoiZCIsImF2YXRhcl91cmwiOiJodHRwczovL21lZGlhMi5seWNoZWVyLm5ldC9wcm9jZXNzL2ltYWdlLzYzMDkxNDE2NjcyNzc4MDM1Mi84MDNmNzA3ZGY0MmIyZjk5ZmM3Y2JhZGNjZTMyMzY1MyIsInNleCI6IjEiLCJzdGF0dXMiOiJub3JtYWwiLCJzdWJzY3JpYmVkIjowLCJyb2xlIjoic3R1ZGVudCIsInRlbGVwaG9uZV92YWxpZGF0ZSI6ZmFsc2UsInR5cGUiOiJBY2NvdW50VG9rZW4iLCJ2ZXJzaW9uIjoiMS4wIiwibG9naW5fa2V5IjpudWxsLCJsb2dpbl93YXkiOm51bGwsImNsaWVudF9pcCI6IjExNi43LjEwNi4xMTMiLCJ0b2tlbl9rZXkiOiJNQzR4TURjMU9URTNOek13TXpBek9UTXpOZyIsImV4cCI6MTc2NDUwNzA3M30.kLURlZuKnX1J9gvgyAPRCjGw06hQyOvMVTHutGaHcnw.b.bdFyw9JfjyKGRXd-KG807dy4YjPSLFRxcdoMPoGxRK0";
 
 const arrGroup: string[][] = [
   // 3000个一组
-  ["36891618", "36891640"],
+  ["36900784", "37000000"],
 ];
 
 interface CourseItem {
@@ -39,6 +39,8 @@ interface CourseItem {
 }
 
 // 获取直播间信息/课程信息等
+let http403Streak = 0;
+
 async function fetchCourseInfo(courseId: string, token: string): Promise<any> {
   const url = `https://apiv1.lizhiweike.com/api/lecture/${courseId}/info?token=${token}`;
 
@@ -53,12 +55,16 @@ async function fetchCourseInfo(courseId: string, token: string): Promise<any> {
       },
     });
 
+    http403Streak = 0;
     return response.data;
   } catch (error) {
-    if (error.status === 403) {
-      console.error("[课程信息接口] 登录失效，请重新登录");
+    const status = (error as any)?.response?.status ?? (error as any)?.status;
+    if (status === 403) {
+      http403Streak += 1;
+      console.error(`[课程信息接口] 403(${http403Streak}/10)`);
     } else {
-      console.error(`[${courseId}] 获取课程信息失败:`, error.status);
+      http403Streak = 0;
+      console.error(`[${courseId}] 获取课程信息失败:`, status);
     }
     throw error;
   }
@@ -89,9 +95,17 @@ async function fetchCourseDetails(
     //   console.error("[API请求] 解析链接失败");
     // }
 
+    http403Streak = 0;
     return response.data;
   } catch (error) {
-    console.error("[API请求] 获取课程详细信息失败:");
+    const status = (error as any)?.response?.status ?? (error as any)?.status;
+    if (status === 403) {
+      http403Streak += 1;
+      console.error(`[课程详情接口] 403(${http403Streak}/10)`);
+    } else {
+      http403Streak = 0;
+      console.error("[API请求] 获取课程详细信息失败:");
+    }
     throw error;
   }
 }
@@ -322,13 +336,14 @@ async function main(courseIds: string[]) {
     let notVideoCount = 0;
 
     // 遍历每个课程ID并处理
+    let abortDueTo403 = false;
     for (let i = 0; i < courseIds.length; i++) {
       const courseId = courseIds[i]!;
       console.log(
         `[处理进度] 正在处理第${i + 1}/${courseIds.length}个课程`
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       try {
         const courseData = await processCourse(courseId, token);
@@ -371,8 +386,17 @@ async function main(courseIds: string[]) {
           updateTime: "",
         });
         notVideoCount++;
+        if (http403Streak > 10) {
+          console.error(`[403] 连续超过10次，终止任务`);
+          abortDueTo403 = true;
+          break;
+        }
         // 继续处理下一个课程，不中断整个流程
       }
+    }
+
+    if (abortDueTo403) {
+      throw new Error('[403] 连续超过10次，终止任务');
     }
 
     console.log(

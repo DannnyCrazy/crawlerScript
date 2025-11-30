@@ -355,6 +355,14 @@ function App() {
               placeholder="选择输出目录，留空默认下载目录"
             />
             <button
+              onClick={() => openShell(outDir || ".")}
+              className="px-3 py-1 rounded bg-gray-600 text-white w-40 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={running}
+              title="打开此文件夹"
+            >
+              打开此文件夹
+            </button>
+            <button
               onClick={onPickOutDir}
               className="px-3 py-1 rounded bg-gray-600 text-white w-40 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={running}
