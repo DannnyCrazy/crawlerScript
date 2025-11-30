@@ -179,8 +179,12 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
     if cancel403.load(Ordering::SeqCst) { break }
     if all_rows.is_empty() { continue }
     let start = chunk.first().unwrap();
-    let end = chunk.last().unwrap();
-    let fname = format!("{}-{}.xlsx", start, end);
+    let end_name = all_rows
+      .iter()
+      .filter_map(|it| it.courseId.parse::<u64>().ok())
+      .max()
+      .unwrap_or(*start);
+    let fname = format!("{}-{}.xlsx", start, end_name);
     let mut path = PathBuf::from(&dir);
     path.push(fname);
     match export_to_excel(path.to_string_lossy().as_ref(), &all_rows) {

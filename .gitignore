@@ -8,3 +8,4 @@ node_modules/*
 */src-tauri/Cargo.lock
 */src-tauri/target/release
 */src-tauri/target/debug
+desktop-app/dist/*

@@ -282,7 +282,7 @@ function App() {
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       {/* <h1 className="text-2xl font-semibold">荔枝视频爬取工具</h1> */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-2 md:col-span-2">
           <label className="text-sm text-gray-600">
             Token{" "}
@@ -291,26 +291,26 @@ function App() {
             )}
           </label>
           <input
-            className="px-3 py-2 border rounded w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 py-1 text-sm border rounded w-full disabled:opacity-50 disabled:cursor-not-allowed"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             disabled={running}
           />
         </div>
-        <div className="space-y-2 md:col-span-2">
-          <div className="flex items-end gap-4">
+        <div className="space-y-1 md:col-span-2">
+          <div className="flex items-end gap-2">
             <div>
               <label className="text-sm text-gray-600">开始-结束：</label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <input
-                  className="px-3 py-2 border rounded flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm border rounded flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={startId}
                   onChange={(e) => setStartId(e.target.value)}
                   disabled={running}
                 />
                 <span>-</span>
                 <input
-                  className="px-3 py-2 border rounded flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-sm border rounded flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   value={endId}
                   onChange={(e) => setEndId(e.target.value)}
                   disabled={running}
@@ -320,7 +320,7 @@ function App() {
             <div className="w-40 flex-1">
               <label className="text-sm text-gray-600">分组大小</label>
               <input
-                className="px-3 py-2 border rounded w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-sm border rounded w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 value={chunkSize}
                 onChange={(e) => setChunkSize(e.target.value)}
                 disabled={running}
@@ -345,18 +345,18 @@ function App() {
             onChange={(e) => setDelayMs(e.target.value)}
           />
         </div> */}
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-1 md:col-span-2">
           <label className="text-sm text-gray-600">输出目录</label>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <input
-              className="px-3 py-2 border rounded flex-1"
+              className="px-2 py-1 text-sm border rounded flex-1"
               value={outDir}
               readOnly
               placeholder="选择输出目录，留空默认下载目录"
             />
             <button
               onClick={onPickOutDir}
-              className="px-4 py-2 rounded bg-gray-600 text-white w-40 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1 rounded bg-gray-600 text-white w-40 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={running}
             >
               选择文件夹
@@ -469,7 +469,9 @@ function App() {
           <div className="flex-1 overflow-auto border rounded bg-neutral-50 p-2 text-xs">
             {outputs.map((p) => (
               <div key={p} className="text-xs flex items-center gap-2">
-                <span className="flex-1 truncate">{(p.split(/[\\/]/).pop() || p)}</span>
+                <span className="flex-1 truncate">
+                  {p.split(/[\\/]/).pop() || p}
+                </span>
                 <button
                   onClick={() => openShell(p)}
                   className="px-2 py-1 rounded bg-blue-600 text-white"
@@ -491,10 +493,18 @@ function App() {
         </div>
       </div>
       <div className="space-y-2">
-        <div className="text-sm text-gray-700">合并 Excel（选择文件夹）</div>
-        <div className="flex gap-2">
+        <div className="text-sm text-gray-700">
+          合并 Excel（选择文件夹）
+          <button
+            onClick={onMerge}
+            className="px-4 py-2 rounded bg-blue-600 text-white"
+          >
+            开始合并 Excel
+          </button>
+        </div>
+        <div className="flex gap-1">
           <input
-            className="px-3 py-2 border rounded flex-1"
+            className="px-2 py-1 text-sm border rounded flex-1"
             value={mergeDir}
             readOnly
             placeholder="选择包含需合并的Excel文件的文件夹"
@@ -502,44 +512,38 @@ function App() {
 
           <button
             onClick={onPickMergeDir}
-            className="px-4 py-2 rounded bg-gray-600 text-white"
+            className="px-3 py-1 rounded bg-gray-600 text-white"
           >
             选择文件夹
           </button>
           {/* 清空 */}
           <button
             onClick={() => setMergeDir("")}
-            className="px-4 py-2 rounded bg-gray-600 text-white"
+            className="px-3 py-1 rounded bg-gray-600 text-white"
           >
             清空
           </button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <input
-            className="px-3 py-2 border rounded flex-1"
+            className="px-2 py-1 text-sm border rounded flex-1"
             value={mergeOut}
             onChange={(e) => setMergeOut(e.target.value)}
             placeholder="留空默认输出到所选文件夹"
           />
           <button
             onClick={onPickMergeOutDir}
-            className="px-4 py-2 rounded bg-gray-600 text-white"
+            className="px-3 py-1 rounded bg-gray-600 text-white"
           >
             选择文件夹
           </button>
           <button
             onClick={onClearMergeOut}
-            className="px-4 py-2 rounded bg-gray-600 text-white"
+            className="px-3 py-1 rounded bg-gray-600 text-white"
           >
             清空
           </button>
         </div>
-        <button
-          onClick={onMerge}
-          className="px-4 py-2 rounded bg-blue-600 text-white"
-        >
-          合并 Excel
-        </button>
       </div>
     </div>
   );
