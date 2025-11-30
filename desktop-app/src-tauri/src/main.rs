@@ -173,7 +173,7 @@ async fn crawl_courses(app: AppHandle, state: State<'_, CancelState>, token: Str
       }));
       started += 1;
       let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""}));
-      sleep(Duration::from_millis(100)).await;
+      sleep(Duration::from_millis(200)).await;
     }
     while let Some(res) = futs.next().await { if let Ok(Ok(mut r)) = res { for mut item in r.drain(..) { processed += 1; item.index = all_rows.len() + 1; if item.result == "成功" { success += 1 } else if item.result == "失败" { failed += 1 } else { ignored += 1 } all_rows.push(item); let _ = app.emit_all("crawl_progress", serde_json::json!({"done": processed, "total": total, "success": success, "failed": failed, "ignored": ignored, "started": started, "current_id": ""})); } } if cancel403.load(Ordering::SeqCst) { break } }
     if cancel403.load(Ordering::SeqCst) { break }
